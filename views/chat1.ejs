@@ -1,0 +1,39 @@
+
+<!doctype html>
+<html>
+  <head>
+    <title>Chat</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font: 13px Helvetica, Arial;padding: 10px,background: #fff}
+      form { background: #000; padding: 3px; position: fixed; bottom: 0; width: 100%; }
+      #m { border: 0; padding: 10px; width: 65%; margin-right: .5%; }
+      #file { width: 20%; background: #fff; border: none;}
+      form button { width: 9%; background: #fff; border: none; padding: 10px; }
+      #messages { list-style-type: none; margin: 0; padding: 0; }
+      #messages li { padding: 5px 10px; }
+      #messages li:nth-child(odd) { background: #gray; }
+    </style>
+  </head>
+  <body>
+    <ul id="messages"></ul>
+    <form action="" style="background-color: #818688">
+      <input id="file" type="file"></input>
+      <input id="m" autocomplete="off" />
+      <button>Send</button>
+    </form>
+    <script src="/socket.io/socket.io.js"></script>
+<script src="http://code.jquery.com/jquery-1.11.1.js"></script>
+<script>
+  var socket = io();
+  $('form').submit(function(){
+    socket.emit('browser chat', $('#m').val());
+    $('#m').val('');
+    return false;
+  });
+  socket.on('browser chat', function(msg){
+    $('#messages').append($('<li>').text(msg));
+  });
+</script>
+  </body>
+</html>

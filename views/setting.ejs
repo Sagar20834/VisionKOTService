@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Database Server Settings</title>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.6/css/bootstrap.min.css">
+  <link rel='stylesheet' href='/stylesheets/style.css' />
+ 
+</head>
+<body>
+  <h1>Database Server Settings</h1>
+
+  <div class="col-md-6">
+    <form action="/setting" class="form-horizontal" method="post">
+
+      <div>
+        <label class="label-control" for="email">Server:</label>
+        <input type="text" class="form-control" name="server" value=<%= server %>><br>
+      </div>
+
+      <div>
+        <label class="label-control" for="email">Database:</label>
+        <input type="text" class="form-control" name="database" value=<%= database %>><br>
+      </div>
+
+      <div>
+       <label class="label-control" for="email">Username:</label>
+       <input type="text" class="form-control" name="username" value=<%= username %>><br>
+     </div>
+
+     <div>
+      <label class="label-control" for="email">Password:</label>
+      <input type="text" class="form-control" name="password" value=<%= password %>><br>
+    </div>
+    
+    <div>
+      <label class="label-control" for="email">Instance:<small>Leave if none</small></label>
+      <input type="text" class="form-control" name="instance" value=<%= instance %>><br>
+    </div>
+
+    <div>
+      <label class="label-control" for="email">UserID:</label>
+      <input type="text" class="form-control" name="userID" value=<%= userID %>><br>
+    </div>
+
+    <button type="Submit" class="btn btn-primary">Save</button>
+  </form>
+</div>
+
+</body>
+</html>

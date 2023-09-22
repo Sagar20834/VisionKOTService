@@ -1,0 +1,12 @@
+select ID,StatusID from gm.tbl_orderInformationSetting
+
+insert into gm.Tbl_OrderInformationSetting(ID,FieldName,StatusID) values(1,'Ledger',1)
+										,(2,'MobileNo',2)
+										,(3,'BillingName',2)
+										,(4,'BillingAddress',2)
+										,(5,'Email Address',2)
+										,(6,'No of Pax 1',2)
+										,(7,'No of Pax 2',2)
+										,(8,'Vat_Pan No',1)
+
+create table GM.Tbl_OrderInformationSetting (ID int ,FieldName NVARCHAR(256),StatusID smallint)

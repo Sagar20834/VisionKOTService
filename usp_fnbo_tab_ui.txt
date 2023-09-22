@@ -1,0 +1,233 @@
+ALTER  Proc [SALES].[Usp_FNBO_Tab_UI]
+( 
+	@OutletID int, 
+    @CounterID int,
+    @TableID int,
+	@WaiterID int,
+    @AddClass1ID int,
+    @AddClass2ID int,
+    @AddClass3ID int,
+    @AddClass4ID int,
+    @AddClass5ID int,
+
+	@BillingName nvarchar(1024) = NULL,
+	@BillingAddress nvarchar(1024) = NULL,
+	@BillingEmail nvarchar(1024) = NULL,
+	@BillingPhone nvarchar(1024) = NULL,
+	@BillingType smallint=NULL,
+	@VATPANNo nvarchar(1024) = NULL,
+
+	@FYID tinyint,
+	@UnitID smallint,
+	@DID int = NULL,
+	@NumId smallint = NULL,
+	@UserId smallint,
+	@Remarks Nvarchar(256),
+	@NoOfGuestAdult int,
+	@NoOfGuestChild int,
+	@PCInfo xml,
+	@DetailsXml xml,  --- Details Table
+	@Token Nvarchar(256), 
+	@OutId int output,      
+	@OutMessage Nvarchar(max) output
+	        
+) 
+--WITH ENCRYPTION     
+As      
+----***************************************** Begin Initial Variable and values ********************************************************
+Declare @ID int = 0 ,@DefaultGodownID int,@GLID int ,@Details [SALES].[UTDT_FNBOD]
+Declare @MSG Nvarchar(max)='',@VNo Nvarchar(MAX)=''  ,@BaiscAmt Decimal = 0 
+DECLARE  @OutletSegmentID tinyint, @CounterSegmentID tinyint,  @AttributeSegmentID tinyint,@WaiterSegmentID tinyint
+,@AddCls1SegmentID int ,@AddCls2SegmentID int ,@AddCls3SegmentID int ,@AddCls4SegmentID int ,@AddCls5SegmentID int 
+
+
+SET @OutId =0
+SET @OutMessage =''
+
+---***************************************** Begin Already Ordered ********************************************************
+
+IF EXISTS (
+	SELECT 
+		TrackingNo
+		from SALES.TBL_SOM where TrackingNo=@Token)
+		Begin
+	SET @MSG= 'Selected Token already used'
+	----ROLLBACK TRANSACTION
+	RAISERROR (@MSG ,11,1)
+	Return
+End
+---***************************************** End Already Ordered *************************************************************** 
+
+SELECT @OutletSegmentID =OutletSegmentID ,  @CounterSegmentID = CounterSegmentID 
+		,@AttributeSegmentID=AttributeSegmentID , @WaiterSegmentID =WaiterSegmentID
+		,@AddCls1SegmentID=Add1SegmentID
+		,@AddCls2SegmentID=Add2SegmentID
+		,@AddCls3SegmentID=Add3SegmentID
+		,@AddCls4SegmentID=Add4SegmentID
+		,@AddCls5SegmentID=Add5SegmentID
+		,@GLID=SYSTEMC.CBID
+		,@DefaultGodownID=SDefaultGodownID
+FROM GM.TBL_SystemControl SYSTEMC WHERE UnitID = @UnitID AND FYID =@FYID AND ISNULL(DID,0) = ISNULL(@DID,0)
+
+  INSERT INTO @Details 
+		SELECT
+		0 AS ID,
+		ParamValues.ID.value('(RowNumber/text())[1]', 'int') AS Sno,
+		ParamValues.ID.value('(ProductId/text())[1]','int') AS PID,
+		ParamValues.ID.value('(Qty/text())[1]','decimal(19,7)') AS Qty,
+		ParamValues.ID.value('(Seat/text())[1]','int') AS Seat,
+		P.UOMID  AS UOMID ,
+		P.SalesPrice AS Rate,
+		ParamValues.ID.value('(Qty/text())[1]','decimal(19,7)') *  P.SalesPrice AS Amt,
+		isnull(ParamValues.ID.value('(Descriptions/text())[1]','nvarchar(1024)'),'')  AS [Description]
+	FROM @DetailsXml.nodes('Table/Row') as ParamValues(ID)
+	LEFT OUTER JOIN GM.Tbl_Product P ON  P.ID = ParamValues.ID.value('(ProductId/text())[1]','int')
+
+SELECT @BaiscAmt = SUM(Amt) FROM @Details
+----***************************************** End Initial Variable and values ********************************************************
+SET XACT_ABORT ON
+BEGIN TRANSACTION
+
+
+----***************************************** Begin Document Numbering ********************************************************
+Exec [GM].[Usp_GetVoucherNo] @NumId,@FYID ,@UnitID,@VNo OUT
+----***************************************** End Document Numbering ********************************************************
+     
+ ----***************************************** Validation Begin ********************************************************      
+	----***************************************** Validation End ********************************************************
+	Insert Into [SALES].[Tbl_SOM]
+	(
+		[VNo],[VDate],[VTime],[DueDate],[SaudaID],[QuotationIDs],[CustomerID],[BPID],[AGID],[ARID],[SLID],
+		[PriceListID],[TermSchemeID],[BonusSchemeID],[TaxGroupID],[GodownID],[TrackingNo],[CLSID1],[CLSID2],[CLSID3],[CLSID4],[CLSID5],[CLSID6],[CLSID7],[CLSID8],[CLSID9],[CurrencyID],[CurRate],[ADCurRate],
+		[AdvanceAmt],[AdvanceCBID],[AdvanceRCNo],[AdvanceRCDate],[AdvanceRCBy],[AdvanceBB],[BasicAmt],[TAmt],[NetAmt],[RefVno],[RefDate],[Remarks],[FYID],[UnitID],[DID],[SID],[VoucherTypeId],[NumId],[StatusID],
+		[InActive],[IsMemo],[SourceID],[PageID],[BillTypeID],[Createdby],[CreatedWaiterby],[CreatedOn],[PCInfoI]
+	)
+	VALUES
+	(	@VNo,getdate(),convert(time,getdate()),NULL,NULL,NULL,@GLID,NULL,NULL,NULL,NULL,
+		NULL,NULL,NULL,NULL,NULL,@Token,
+		CASE WHEN @OutletSegmentID  = 1 THEN NULLIF(@OutletID,0)  WHEN @CounterSegmentID  = 1 THEN NULLIF(@CounterID,0)  WHEN @AttributeSegmentID = 1 THEN NULLIF(@TableID,0) WHEN @WaiterSegmentID = 1 THEN NULLIF(@WaiterID,0)  WHEN @AddCls1SegmentID = 1 THEN NULLIF(@AddClass1ID,0)  WHEN @AddCls2SegmentID = 1 THEN NULLIF(@AddClass2ID,0) WHEN @AddCls3SegmentID = 1 THEN NULLIF(@AddClass3ID,0) WHEN @AddCls4SegmentID = 1 THEN NULLIF(@AddClass4ID,0) WHEN @AddCls5SegmentID = 1 THEN NULLIF(@AddClass5ID,0)  END,
+		CASE WHEN @OutletSegmentID  = 2 THEN NULLIF(@OutletID,0)  WHEN @CounterSegmentID  = 2 THEN NULLIF(@CounterID,0)  WHEN @AttributeSegmentID = 2 THEN NULLIF(@TableID,0) WHEN @WaiterSegmentID = 2 THEN NULLIF(@WaiterID,0)  WHEN @AddCls1SegmentID = 2 THEN NULLIF(@AddClass1ID,0)  WHEN @AddCls2SegmentID = 2 THEN NULLIF(@AddClass2ID,0) WHEN @AddCls3SegmentID = 2 THEN NULLIF(@AddClass3ID,0) WHEN @AddCls4SegmentID = 2 THEN NULLIF(@AddClass4ID,0) WHEN @AddCls5SegmentID = 2 THEN NULLIF(@AddClass5ID,0)  END,
+		CASE WHEN @OutletSegmentID  = 3 THEN NULLIF(@OutletID,0)  WHEN @CounterSegmentID  = 3 THEN NULLIF(@CounterID,0)  WHEN @AttributeSegmentID = 3 THEN NULLIF(@TableID,0) WHEN @WaiterSegmentID = 3 THEN NULLIF(@WaiterID,0)  WHEN @AddCls1SegmentID = 3 THEN NULLIF(@AddClass1ID,0)  WHEN @AddCls2SegmentID = 3 THEN NULLIF(@AddClass2ID,0) WHEN @AddCls3SegmentID = 3 THEN NULLIF(@AddClass3ID,0) WHEN @AddCls4SegmentID = 3 THEN NULLIF(@AddClass4ID,0) WHEN @AddCls5SegmentID = 3 THEN NULLIF(@AddClass5ID,0)  END,
+		CASE WHEN @OutletSegmentID  = 4 THEN NULLIF(@OutletID,0)  WHEN @CounterSegmentID  = 4 THEN NULLIF(@CounterID,0)  WHEN @AttributeSegmentID = 4 THEN NULLIF(@TableID,0) WHEN @WaiterSegmentID = 4 THEN NULLIF(@WaiterID,0)  WHEN @AddCls1SegmentID = 4 THEN NULLIF(@AddClass1ID,0)  WHEN @AddCls2SegmentID = 4 THEN NULLIF(@AddClass2ID,0) WHEN @AddCls3SegmentID = 4 THEN NULLIF(@AddClass3ID,0) WHEN @AddCls4SegmentID = 4 THEN NULLIF(@AddClass4ID,0) WHEN @AddCls5SegmentID = 4 THEN NULLIF(@AddClass5ID,0)  END,
+		CASE WHEN @OutletSegmentID  = 5 THEN NULLIF(@OutletID,0)  WHEN @CounterSegmentID  = 5 THEN NULLIF(@CounterID,0)  WHEN @AttributeSegmentID = 5 THEN NULLIF(@TableID,0) WHEN @WaiterSegmentID = 5 THEN NULLIF(@WaiterID,0)  WHEN @AddCls1SegmentID = 5 THEN NULLIF(@AddClass1ID,0)  WHEN @AddCls2SegmentID = 5 THEN NULLIF(@AddClass2ID,0) WHEN @AddCls3SegmentID = 5 THEN NULLIF(@AddClass3ID,0) WHEN @AddCls4SegmentID = 5 THEN NULLIF(@AddClass4ID,0) WHEN @AddCls5SegmentID = 5 THEN NULLIF(@AddClass5ID,0)  END,
+		CASE WHEN @OutletSegmentID  = 6 THEN NULLIF(@OutletID,0)  WHEN @CounterSegmentID  = 6 THEN NULLIF(@CounterID,0)  WHEN @AttributeSegmentID = 6 THEN NULLIF(@TableID,0) WHEN @WaiterSegmentID = 6 THEN NULLIF(@WaiterID,0)  WHEN @AddCls1SegmentID = 6 THEN NULLIF(@AddClass1ID,0)  WHEN @AddCls2SegmentID = 6 THEN NULLIF(@AddClass2ID,0) WHEN @AddCls3SegmentID = 6 THEN NULLIF(@AddClass3ID,0) WHEN @AddCls4SegmentID = 6 THEN NULLIF(@AddClass4ID,0) WHEN @AddCls5SegmentID = 6 THEN NULLIF(@AddClass5ID,0)  END,
+		CASE WHEN @OutletSegmentID  = 7 THEN NULLIF(@OutletID,0)  WHEN @CounterSegmentID  = 7 THEN NULLIF(@CounterID,0)  WHEN @AttributeSegmentID = 7 THEN NULLIF(@TableID,0) WHEN @WaiterSegmentID = 7 THEN NULLIF(@WaiterID,0)  WHEN @AddCls1SegmentID = 7 THEN NULLIF(@AddClass1ID,0)  WHEN @AddCls2SegmentID = 7 THEN NULLIF(@AddClass2ID,0) WHEN @AddCls3SegmentID = 7 THEN NULLIF(@AddClass3ID,0) WHEN @AddCls4SegmentID = 7 THEN NULLIF(@AddClass4ID,0) WHEN @AddCls5SegmentID = 7 THEN NULLIF(@AddClass5ID,0)  END,
+		CASE WHEN @OutletSegmentID  = 8 THEN NULLIF(@OutletID,0)  WHEN @CounterSegmentID  = 8 THEN NULLIF(@CounterID,0)  WHEN @AttributeSegmentID = 8 THEN NULLIF(@TableID,0) WHEN @WaiterSegmentID = 8 THEN NULLIF(@WaiterID,0)  WHEN @AddCls1SegmentID = 8 THEN NULLIF(@AddClass1ID,0)  WHEN @AddCls2SegmentID = 8 THEN NULLIF(@AddClass2ID,0) WHEN @AddCls3SegmentID = 8 THEN NULLIF(@AddClass3ID,0) WHEN @AddCls4SegmentID = 8 THEN NULLIF(@AddClass4ID,0) WHEN @AddCls5SegmentID = 8 THEN NULLIF(@AddClass5ID,0)  END,
+		CASE WHEN @OutletSegmentID  = 9 THEN NULLIF(@OutletID,0)  WHEN @CounterSegmentID  = 9 THEN NULLIF(@CounterID,0)  WHEN @AttributeSegmentID = 9 THEN NULLIF(@TableID,0) WHEN @WaiterSegmentID = 9 THEN NULLIF(@WaiterID,0)  WHEN @AddCls1SegmentID = 9 THEN NULLIF(@AddClass1ID,0)  WHEN @AddCls2SegmentID = 9 THEN NULLIF(@AddClass2ID,0) WHEN @AddCls3SegmentID = 9 THEN NULLIF(@AddClass3ID,0) WHEN @AddCls4SegmentID = 9 THEN NULLIF(@AddClass4ID,0) WHEN @AddCls5SegmentID = 9 THEN NULLIF(@AddClass5ID,0)  END,
+		NULL,1,1 ,0,NULL,NULL,NULL,NULL,NULL,isnull(@BaiscAmt,0),0,@BaiscAmt,NULL,NULL,@Remarks,@FYID,@UnitID,NULL,NULL,NULL,@NumId,NULL,
+		NULL,NULL,259,254,103,@UserId,@WaiterID,GetDate(),@PCInfo
+	)        
+	Set @ID =SCOPE_IDENTITY()      
+	Set @OutId = @ID  
+	
+		 INSERT INTO [SALES].[Tbl_FNBOrderAdditional] (SOMID,NoPax_Adult,NoPax_Child,BillingGLID)
+		values (@ID,@NoOfGuestAdult,@NoOfGuestChild,@BillingType)
+
+
+
+	-- Details    
+	Insert Into [SALES].[Tbl_SOD]
+	(
+		[SOMID],[Sno],[PID],[GodownID],[Alt1StockQty],[Alt1Qty],[Alt1UOMID],[AltStockQty],[AltQty],[AltUOMID],[StockQty],[Qty],[UOMID],[FreePID],[FreeStockQty],[FreeQty],[FreeUOMID],[Rate],[BasicAmt],[TAmt],[NetAmt],
+		[QuotationID],[No_Qty],[ActualQty],[ActualAmount],[Descriptions],[TrackingNo],[TypeID],[StatusID]
+	)
+
+
+
+	SELECT 
+	 	@ID,Sno,PID,@DefaultGodownID,NULL,NULL,NULL,NULL,NULL,NULL,Qty,Qty,NULLIF(NULLIF(UOMID,0),''),NULL,NULL,NULL,NULL,Rate,Amt,0,Amt,NULL,
+		Seat,NULL,NULL, [Description],NULL,NULL TypeID, NULL StatusID
+	FROM @Details
+
+	-- Billing Address
+
+	DECLARE @BillingAddressXML xml, @BillingAddressCap nvarchar(256)='Address', @BillingAddressValue nvarchar(256)=''
+
+	IF (LTRIM(RTRIM(ISNULL(@BillingAddress,''))) <> '')
+	BEGIN
+		SET @BillingAddressXML = '<Table><Row><Caption>Address</Caption><Value>'+ @BillingAddress + '</Value></Row></Table>'
+		SET @BillingAddressValue = @BillingAddress
+	END
+
+	-- Billing Phone
+	DECLARE @BillingPhoneXML xml, @BillingPhoneCap nvarchar(256)='Phone', @BillingPhoneValue nvarchar(256)=''
+
+	IF (LTRIM(RTRIM(ISNULL(@BillingPhone,''))) <> '')
+	BEGIN
+		SET @BillingPhoneXML = '<Table><Row><Caption>Phone</Caption><Value>'+ @BillingPhone + '</Value></Row></Table>'
+		SET @BillingPhoneValue = @BillingPhone
+	END
+
+	-- Billing Email
+	DECLARE @BillingEmailXML xml, @BillingEmailCap nvarchar(256)='Email', @BillingEmailValue nvarchar(256)=''
+
+	IF (LTRIM(RTRIM(ISNULL(@BillingPhone,''))) <> '')
+	BEGIN
+		SET @BillingEmailXML = '<Table><Row><Caption>Email</Caption><Value>'+ @BillingEmail + '</Value></Row></Table>'
+		SET @BillingEmailValue = @BillingEmail
+	END
+
+	IF (RTRIM(LTRIM(ISNULL(@BillingPhone,'') )) <> '' )
+	BEGIN	
+		Insert Into [SALES].[Tbl_SOBA]
+		(
+			[SOMID],[BillingName],[BillingCPerson],[BillingAdressXml],[BillingAddressCap],[BillingAddressValue],[BillingPhoneXml],[BillingPhoneCap],[BillingPhoneValue],[BillingEmailXml],[BillingEmailCap],[BillingEmailValue],[BillingURLXml],
+			[BillingURLCap],[BillingURLValue],[BillingVatPanNo],[BillingTinNo],[BillingTanNo],[BillingServiceTaxNo],[BillingExciseRCNo],[BillingDLNo],[BillingGstNo],[BillingCstNo],[ShippingName],[ShippingCPerson],[ShippingAdressXml],
+			[ShippingAddressCap],[ShippingAddressValue],[ShippingPhoneXml],[ShippingPhoneCap],[ShippingPhoneValue],[ShippingEmailXml],[ShippingEmailCap],[ShippingEmailValue],[ShippingURLXml],[ShippingURLCap],[ShippingURLValue],[ShippingVatPanNo],
+			[ShippingTinNo],[ShippingTanNo],[ShippingServiceTaxNo],[ShippingExciseRCNo],[ShippingDLNo],[ShippingGstNo],[ShippingCstNo]
+		)
+		SELECT
+			@ID,@BillingName,NULL,@BillingAddressXML,@BillingAddressCap,@BillingAddressValue,@BillingPhoneXML,@BillingPhoneCap,@BillingPhoneValue,@BillingEmailXML,@BillingEmailCap,@BillingEmailValue,Null,
+			'Web Site',NULL,@VATPANNo,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,
+			'Address',NULL,NULL,'Phone',NULL,NULL,'Email',NULL,NULL,'Web Site',NULL,NULL,
+			NULL,NULL,NULL,NULL,NULL,NULL,NULL
+	END
+
+	
+	SET @OutMessage = 'Voucher No : [' +@VNo + '] has been Order Sucessfully..'
+	-- Account Posting
+--if (isnull(@AdvanceAmt,0) <> 0	 AND @AdvanceCBID IS NOT NULL ) EXEC [SALES].[Usp_AT_SO] @ID
+	 
+	---========================================================================== *** Auto Posting *** ==============================================================================================
+	
+	DECLARE @MasterLogId bigint
+	DECLARE @ActionDateTime DateTime2 = GETDATE() 
+	DECLARE @ActionMiti VARCHAR(10)= (SELECT M_Miti FROM USYS.Tbl_DateMiti WHERE M_Date = CONVERT(DATE,@ActionDateTime))
+	DECLARE @ActionUser NVARCHAR(256)= (SELECT Name FROM GM.Tbl_UserMaster WHERE ID = @UserId)
+
+	INSERT INTO [Audit].[Tbl_Master_Log]  ( [SourceID] ,[Source] ,[MasterID] ,[VNo] ,[ActionType] ,[ActionDateTime],[ActionMiti] ,[ActionUserId],[ActionUserName] )
+	VALUES (253,'SO',@Id,@Vno,'NEW',@ActionDateTime,@ActionMiti,@UserId,@ActionUser)
+	SET @MasterLogId = SCOPE_IDENTITY()
+	
+	
+	------ Master
+	Insert Into [Audit].[Tbl_SOM_Audit]
+	(
+		[MasterLogID],[ID],[VNo],[VDate],[VTime],[DueDate],[SaudaID],[QuotationIDs],[CustomerID],[BPID],[AGID],[ARID],[SLID],
+		[PriceListID],[TermSchemeID],[BonusSchemeID],[TaxGroupID],[GodownID],[TrackingNo],[CLSID1],[CLSID2],[CLSID3],[CLSID4],[CLSID5],[CLSID6],[CLSID7],[CLSID8],[CLSID9],[CurrencyID],[CurRate],[ADCurRate],
+		[AdvanceAmt],[AdvanceCBID],[AdvanceRCNo],[AdvanceRCDate],[AdvanceRCBy],[AdvanceBB],[BasicAmt],[TAmt],[NetAmt],[RefVno],[RefDate],[Remarks],[FYID],[UnitID],[DID],[SID],[VoucherTypeId],[NumId],[StatusID],
+		[InActive],[IsMemo],[SourceID],[PrintNo],[PageID],[BillTypeID],[PostedByID],[PostedByDate],[AuditLockByID],[AuditLockDate] ,[ReconcileByID] ,[ReconcileDate],[AdvanceReconcileByID] ,[AdvanceReconcileDate],[AdvanceClearedByID] ,[AdvanceClearedByDate],[ClosedByID],[ClosedDate] ,[ClosedRemarks],  [CancelByID] ,[CancelDate] ,[CancelRemarks] ,[Createdby],[CreatedWaiterby],[CreatedOn],[LUpdateby],[LUpdateOn] ,[PCInfoI] ,[PCInfoU]
+
+	)
+	SELECT 
+		@MasterLogId,[ID],[VNo],[VDate],[VTime],[DueDate],[SaudaID],[QuotationIDs],[CustomerID],[BPID],[AGID],[ARID],[SLID],
+		[PriceListID],[TermSchemeID],[BonusSchemeID],[TaxGroupID],[GodownID],[TrackingNo],[CLSID1],[CLSID2],[CLSID3],[CLSID4],[CLSID5],[CLSID6],[CLSID7],[CLSID8],[CLSID9],[CurrencyID],[CurRate],[ADCurRate],
+		[AdvanceAmt],[AdvanceCBID],[AdvanceRCNo],[AdvanceRCDate],[AdvanceRCBy],[AdvanceBB],[BasicAmt],[TAmt],[NetAmt],[RefVno],[RefDate],[Remarks],[FYID],[UnitID],[DID],[SID],[VoucherTypeId],[NumId],[StatusID],
+		[InActive],[IsMemo],[SourceID],[PrintNo],[PageID],[BillTypeID],[PostedByID],[PostedByDate],[AuditLockByID],[AuditLockDate] ,[ReconcileByID] ,[ReconcileDate],[AdvanceReconcileByID] ,[AdvanceReconcileDate],[AdvanceClearedByID] ,[AdvanceClearedByDate],[ClosedByID],[ClosedDate] ,[ClosedRemarks],  [CancelByID] ,[CancelDate] ,[CancelRemarks] ,[Createdby],[CreatedWaiterby],[CreatedOn],[LUpdateby],[LUpdateOn] ,[PCInfoI] ,[PCInfoU]
+
+	FROM [SALES].TBL_SOM WHERE ID = @ID
+
+	----- Details
+	Insert Into [Audit].[Tbl_SOD_Audit]
+	(
+		[MasterLogID],[ID],[SOMID],[Sno],[PID],[GodownID],[Alt1StockQty],[Alt1Qty],[Alt1UOMID],[AltStockQty],[AltQty],[AltUOMID],[StockQty],[Qty],[UOMID],[FreePID],[FreeStockQty],[FreeQty],[FreeUOMID],[Rate],[BasicAmt],[TAmt],[NetAmt],
+		[QuotationID],[No_Qty],[ActualQty],[ActualAmount],[Descriptions],[TrackingNo],[TypeID],[StatusID]
+	)
+	SELECT 
+	 	@MasterLogId,[ID],[SOMID],Sno,PID,[GodownID],Alt1StockQty,Alt1Qty,Alt1UOMID,AltStockQty,AltQty,AltUOMID,StockQty,Qty,UOMID,FreePID,FreeStockQty,FreeQty,FreeUOMID,Rate,BasicAmt,TAmt,NetAmt,QuotationID,[No_Qty],[ActualQty],[ActualAmount],
+		Descriptions,TrackingNo,TypeID, StatusID
+	FROM [SALES].[Tbl_SOD] AS SOD WHERE SOMID = @ID
+
+	 
+COMMIT TRANSACTION
+SET XACT_ABORT OFF

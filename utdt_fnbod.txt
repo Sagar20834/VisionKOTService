@@ -1,0 +1,11 @@
+CREATE TYPE [SALES].[UTDT_FNBOD] AS TABLE(
+	[ID] [int] NOT NULL,
+	[Sno] [smallint] NOT NULL,
+	[PID] [int] NOT NULL,
+	[Qty] [decimal](19, 7) NOT NULL,
+	[Seat] [int] NULL,
+	[UOMID] [smallint] NULL,
+	[Rate] [decimal](19, 7) NOT NULL,
+	[Amt] [decimal](19, 7) NOT NULL,
+	[Description] [nvarchar](max) NOT NULL
+)
